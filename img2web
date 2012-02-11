@@ -1,0 +1,99 @@
+#! /usr/bin/perl
+#(cc-by-nc-sa) 2011 Moritz Frenzel
+# momo@mo2-systems.com
+use strict;
+
+my $filetype = $ARGV[0];
+my $outfile = $ARGV[1];
+my @files = `ls|grep $filetype`;
+my $txtfile = undef;
+html_wrapup("start");
+
+#display help
+if ($filetype =~ m/help/) {
+	print <<EOF;
+Usage: 
+	img2web --help: Display this help
+	img2web <filetype> write a text about all files of a type
+	img2web <filetype> <outfile> write to a specified outfile (Default: index.html)
+EOF
+	exit 0;
+} 
+
+#checking if files of the specified filetype are present
+if ($#files != 0) {
+	print "Sorry, there are no files with your filetype\n";
+	exit 0;
+}
+
+#checking if a outfile is specified
+if ($outfile == undef) {
+	print "No outfile specified, using index.html as filename\n";
+	$outfile = "index.html";
+}
+
+foreach (@files) {
+	resize_image($_);
+	embed_image($_);
+	create_txtfile($_);
+}
+html_wrapup("end");
+
+
+sub resize_image {
+	#as my Image::Magick isn't working correctly I'm using the bash convert tool, howsoever I'll provide the valid code for the perl implementation in the next time.
+	chomp($_[0]);
+	my $command = "convert -resize x600 $_[0] $_[0]";
+	open CONV,"-|",$command or die "can't run '$command':$!";
+	close CONV;
+}
+
+sub embed_image {
+	if ($_ =~ /$filetype/) {
+		generate_html($_[0], "img");
+	}
+}
+
+sub create_txtfile {
+	$txtfile = $_[0];
+	#changing the files suffix into txt
+	$txtfile =~ s/$filetype/txt/g;
+	#opening a texteditor for the corresponding file
+	my $command = "vim $txtfile";
+	system($command);
+	generate_html($txtfile, "txt");
+}
+
+sub generate_html {
+	my $file = $_[0];
+	my $type = $_[1];
+	if ($type eq 'txt') {
+		my @text = `cat $file`;
+		open FILE,">>",$outfile;
+		foreach (@text) {
+			$_ =~ s/\n//g; #escaping newlines to get some readable (and valid) code
+			print FILE "<p>$_</p>\n";
+		}	
+		close FILE;	
+	}else{
+		if ($type eq "img"){
+			my $img_string = "<img src=\"$file\">\n";
+			open FILE,">>", $outfile;
+			print FILE "$img_string";
+			close FILE;
+			}
+	}
+}
+
+
+sub html_wrapup {
+	my $html_start = "<html>\n<head>\n\t<title>Test<\/title>\n<\/head>\n<body>\n\n<blockqoute>\n";
+	my $html_end = "<\/blockqoute><\/body>\n<\/html>";
+	open FILE,">>",$outfile;
+	if ($_[0] eq "start") {
+		print FILE $html_start
+	}else{
+		print FILE $html_end;
+	}
+	close FILE;
+}
